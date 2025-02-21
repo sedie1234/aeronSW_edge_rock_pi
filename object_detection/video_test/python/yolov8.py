@@ -9,7 +9,7 @@ import numpy as np
 realpath = os.path.abspath(__file__)
 _sep = os.path.sep
 realpath = realpath.split(_sep)
-sys.path.append(os.path.join(realpath[0]+_sep, *realpath[1:realpath.index('npu_test')+1]))
+sys.path.append(os.path.join(realpath[0]+_sep, *realpath[1:realpath.index('object_detection')+1]))
 
 from py_utils.coco_utils import COCO_test_helper
 
@@ -183,8 +183,9 @@ def setup_model(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Real-time object detection')
     parser.add_argument('--model_path', type=str, required=True, help='Model path (.pt, .rknn, .onnx)')
-    parser.add_argument('--target', type=str, default='rk3566', help='RKNPU target platform')
+    parser.add_argument('--target', type=str, default='rk3588', help='RKNPU target platform')
     parser.add_argument('--device_id', type=str, default=None, help='Device ID')
+    parser.add_argument('--cam', type=int, default=0, help='camera number')
     args = parser.parse_args()
 
     # Initialize model
@@ -192,7 +193,7 @@ if __name__ == '__main__':
     co_helper = COCO_test_helper(enable_letter_box=True)
 
     # Open video capture
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(args.cam)
     if not cap.isOpened():
         print("Error: Couldn't open camera.")
         sys.exit(1)
@@ -220,7 +221,7 @@ if __name__ == '__main__':
 
         # Post-processing
         boxes, classes, scores = post_process(outputs)
-
+        print("classes : ",classes)
         # Draw results
         if boxes is not None:
             draw(frame, co_helper.get_real_box(boxes), scores, classes)

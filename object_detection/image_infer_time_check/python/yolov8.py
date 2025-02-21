@@ -9,7 +9,7 @@ import time
 realpath = os.path.abspath(__file__)
 _sep = os.path.sep
 realpath = realpath.split(_sep)
-sys.path.append(os.path.join(realpath[0]+_sep, *realpath[1:realpath.index('npu_test')+1]))
+sys.path.append(os.path.join(realpath[0]+_sep, *realpath[1:realpath.index('object_detection')+1]))
 
 from py_utils.coco_utils import COCO_test_helper
 import numpy as np
@@ -98,7 +98,6 @@ def dfl(position):
     n,c,h,w = x.shape
     p_num = 4
     mc = c//p_num
-    print(n,p_num,mc,h,w)
     y = x.reshape(n,p_num,mc,h,w)
     y = y.softmax(2)
     acc_metrix = torch.tensor(range(mc)).float().reshape(1,1,mc,1,1)
@@ -126,11 +125,13 @@ def post_process(input_data):
     defualt_branch=3
     pair_per_branch = len(input_data)//defualt_branch
     # Python 忽略 score_sum 输出
+    
     for i in range(defualt_branch):
         boxes.append(box_process(input_data[pair_per_branch*i]))
         classes_conf.append(input_data[pair_per_branch*i+1])
         scores.append(np.ones_like(input_data[pair_per_branch*i+1][:,:1,:,:], dtype=np.float32))
 
+    
     def sp_flatten(_in):
         ch = _in.shape[1]
         _in = _in.transpose(0,2,3,1)
@@ -139,14 +140,13 @@ def post_process(input_data):
     boxes = [sp_flatten(_v) for _v in boxes]
     classes_conf = [sp_flatten(_v) for _v in classes_conf]
     scores = [sp_flatten(_v) for _v in scores]
-
     boxes = np.concatenate(boxes)
     classes_conf = np.concatenate(classes_conf)
     scores = np.concatenate(scores)
-
+    
     # filter according to threshold
     boxes, classes, scores = filter_boxes(boxes, scores, classes_conf)
-
+    
     # nms
     nboxes, nclasses, nscores = [], [], []
     for c in set(classes):
@@ -280,7 +280,7 @@ if __name__ == '__main__':
         
         npu_end_time = time.time()
         boxes, classes, scores = post_process(outputs)
-
+        
         real_end_time = time.time()
 
         if args.img_show or args.img_save:
