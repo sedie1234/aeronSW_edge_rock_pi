@@ -15,6 +15,7 @@
 - rockchip npu runtime install
 ```
 $ sudo cp object_detection/rockchip_npu_runtime/librknnrt /usr/lib64/
+$ pip install rknn-toolkit2
 ```
 
 ## Image object detection
@@ -49,6 +50,7 @@ $ cd image_infer_time_check/cpp
 $ mkdir build && cd build
 $ cmake .. -DTARGET_SOC=rk3588
 $ make
+$ cp  -r ../../../model .
 $ ./rknn_yolov8_demo ../../model/yolov8.rknn ../../model/bus.jpg
 ```
 
@@ -84,5 +86,6 @@ $ cd video_test/cpp
 $ mkdir build && cd build
 $ cmake .. -DTARGET_SOC=rk3588
 $ make
+$ cp  -r ../../../model .
 $ ./rknn_yolov8_demo ../../model/yolov8.rknn [camera device index]
 ```
