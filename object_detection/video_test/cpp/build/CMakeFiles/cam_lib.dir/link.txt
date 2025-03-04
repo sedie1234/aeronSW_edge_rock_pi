@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcam_lib.a CMakeFiles/cam_lib.dir/main.cc.o CMakeFiles/cam_lib.dir/postprocess.cc.o
+/usr/bin/ranlib libcam_lib.a

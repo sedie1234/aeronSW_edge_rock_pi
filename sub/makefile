@@ -1,7 +1,14 @@
 # Compiler
 CXX = g++
-CXXFLAGS = -Wall -Wextra -Wimplicit-fallthrough=5 -Iinclude -std=c++17
-LDFLAGS = -Wl,-rpath,$(PWD)/third_party/librdkafka -L$(PWD)/third_party/librdkafka -lrdkafka++ -lrdkafka -lpthread
+CXXFLAGS = -Wall -Wextra -Wimplicit-fallthrough=5 -Iinclude -std=c++17 
+LDFLAGS = -Wl,-rpath,$(PWD)/third_party/librdkafka -L$(PWD)/third_party/librdkafka -lrdkafka++ -lrdkafka -lpthread 
+
+#cam include 
+CAM_HEDER=$(PWD)/../object_detection
+# CAM_HEDER=$(shell find $(PWD)/../object_detection -name "*.h")
+# CXXFLAGS += -I$(CAM_HEDER)/video_test/cpp  -I$(CAM_HEDER)/utils -I$(CAM_HEDER)/3rdparty/timer  -I$(CAM_HEDER)/3rdparty/allocator/dma -I$(CAM_HEDER)/3rdparty/allocator/drm 
+LDFLAGS += -L$(PWD)/../build/object_detection/video_test/cpp/3rdparty.out -L$(PWD)/../build/object_detection/video_test/cpp/utils.out -L$(PWD)/../build/object_detection/video_test/cpp/libcam_lib.a
+# CXXFLAGS+= $(foreach files, $(CAM_HEDER), -I$(files))
 
 # Directories
 SRC_DIR = src

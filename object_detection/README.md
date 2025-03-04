@@ -65,7 +65,7 @@ $ sh download_model.sh
 - COCO가 아닌 custom dataset을 활용하는 경우, calibration용 데이터셋을 구축해야 할 것
 ```
 $ cd video_test/python/
-$ python3 convert.py ../model/yolov8n.onnx rk3588
+$ python3 convert.py ../model/yolov8n.onnx rk3588  ##convert.py에서 DATASET_PATH 수정필요
 ```
 
 3. inference in cpu and python : coco dataset

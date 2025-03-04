@@ -9,6 +9,13 @@
 #include "sig_handler.h"
 #include "utils/utils.h"
 
+#include "cam_detect.h"
+#include <string.h>
+
+extern "C"{
+    #include "imu.h"
+}
+
 const int MSG_SIZE = 1024;
 const unsigned int FREQ = 1000000; //us (1,000,000 = 1sec)
 
@@ -26,12 +33,33 @@ Kafka_Producer set_prd_status(const std::string broker, std::string topic, unsig
 
 void* thread_handler(void* data);
 
-int main(){
+int main(int argc, char **argv)
+{
+    if (argc != 4)
+    {
+        printf("%s <model_path> <CAM_index> <imu_interval>\n", argv[0]);
+
+        return -1;
+    }
+
+    //cam init
+    if(Cam_Detect::init(argv)!=0){
+        std::cerr <<"failed Cam init"<<std::endl;
+        return -1;
+    }
+
+    //IMU init
+    // int interval=std::stoi(argv[3]);
+    int interval=FREQ/1000; //us to ms
+    if(imu_init(interval)!=0) { //interval >300 => 15 ~16 데이터 출력 차이 500~600ms  
+        std::cerr <<"failed IMU init"<< std::endl;
+        return -1;
+    }
 
     setup_sig_handler();
     auto th_handler = std::unique_ptr<pthread_t, PThreadDeleter>(new pthread_t);    
-
     if(pthread_create(th_handler.get(), nullptr, thread_handler, nullptr) != 0){
+
         std::cerr << "failed generate Thread " << std::endl; 
         return -1;    
     }
@@ -71,11 +99,12 @@ void* thread_handler(void* data){
      * ============================== */
     
     
-    auto cam_data = std::make_shared<Cam_Data_Generator>(); //카메라 데이터 생성 객체
-    auto imu_data = std::make_shared<IMU_Data_Generator>(); //IMU 데이터 생성 객체
-
     std::vector<std::shared_ptr<IData_Generator>> data_generators; //생성된 객체를 Vector 에 넣음
+
+    auto cam_data = std::make_shared<Cam_Data_Generator>(); //카메라 데이터 생성 객체
     data_generators.push_back(cam_data);
+   
+    auto imu_data = std::make_shared<IMU_Data_Generator>(); //IMU 데이터 생성 객체
     data_generators.push_back(imu_data);
 
     for (const auto& generator : data_generators) { //Vector 안에 있는 객체별로 생성 + 전송 하는 코드
@@ -83,23 +112,49 @@ void* thread_handler(void* data){
         // 각 센서별로 producer instance 생성, 
         Kafka_Producer* prd = new Kafka_Producer(generator->get_broker(), generator->get_topic(), generator->get_freq());
         Thread_Args* ta = new Thread_Args{generator, prd};
+        #if 0
         pthread_t* push_data_t = new pthread_t; 
+
+
         if(pthread_create(push_data_t, nullptr, Kafka_Producer::push_topic_t, ta) != 0){
             std::cerr << "failed generate producer Thread " << std::endl; 
             perror("producer_threads");
             exit(1);
-        }else{
+        }
+        else{
             producer_Pool.push_back(prd);
             thread_args_Pool.push_back(ta);
             producer_thread_Manager.push_back(push_data_t);
             delete push_data_t;
         }
+        #elif 1 //yu 0320 수정함 pthread_t 동적할당하지 않고 사용
+        pthread_t push_data_t;
+        if(pthread_create(&push_data_t, nullptr, Kafka_Producer::push_topic_t, ta) != 0){
+            std::cerr << "failed generate producer Thread " << std::endl; 
+            perror("producer_threads");
+            exit(1);
+        }
+        else{
+            producer_Pool.push_back(prd);
+            thread_args_Pool.push_back(ta);
+            producer_thread_Manager.push_back(&push_data_t);
+            // delete &push_data_t;
+        }
+
+        #endif
     }
 
     /* 생성된 모든 쓰레드 분리 실행 */
     // Producer Thread 실행
     for (pthread_t *prd_thread : producer_thread_Manager) {
+#if 1 //yu //null이면 detach 하지 않기
+        if(prd_thread==nullptr){
+            std::cerr<<"Error:Null thread pointer in porducer_thread_Manager!"<<std::endl;
+            continue; 
+        }
+#endif
         pthread_detach(*prd_thread);
+
     }
 
 

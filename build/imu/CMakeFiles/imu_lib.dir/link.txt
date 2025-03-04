@@ -1,0 +1,2 @@
+/usr/bin/ar qc libimu_lib.a CMakeFiles/imu_lib.dir/imu.c.o CMakeFiles/imu_lib.dir/uart.c.o
+/usr/bin/ranlib libimu_lib.a

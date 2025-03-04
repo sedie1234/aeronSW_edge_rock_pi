@@ -9,6 +9,7 @@
 //데이터 생성 관련 Header
 #include "data_generator.h"
 
+
 /* Producer */
 class Delivery_Report_Callback : public RdKafka::DeliveryReportCb{
     public:

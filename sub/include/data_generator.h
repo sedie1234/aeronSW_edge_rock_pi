@@ -10,7 +10,6 @@
 
 #include <chrono>
 
-
 //카프카 Connector Sink DB 저장을 위한 Schema 폼
 struct Fields_Info{
     std::string type;
@@ -24,12 +23,15 @@ class IData_Generator{
         virtual ~IData_Generator() = default;
         virtual std::string generate() = 0;
 
+        // virtual int init(int argc, char** argv);
+
         // Getter 함수 
         virtual std::string get_broker() const = 0;
         virtual std::string get_topic() const = 0;
         virtual unsigned int get_freq() const = 0;
 
 };
+
 
 //카메라 데이터 생성
 class Cam_Data_Generator : public IData_Generator{
@@ -44,6 +46,9 @@ class Cam_Data_Generator : public IData_Generator{
         std::string get_broker() const override { return PRD_BROKER; }
         std::string get_topic() const override { return PRD_TOPIC; }
         unsigned int get_freq() const override { return FREQ; }
+
+        // int init(int argc, char** argv);
+        // std::string object_detect();
 
 };
 

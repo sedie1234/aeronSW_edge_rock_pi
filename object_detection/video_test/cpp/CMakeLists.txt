@@ -41,15 +41,43 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(${PROJECT_NAME} Threads::Threads)
 endif()
 
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${LIBRKNNRT_INCLUDES}
     ${LIBTIMER_INCLUDES}
 )
 
-
 install(TARGETS ${PROJECT_NAME} DESTINATION .)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model/bus.jpg DESTINATION model)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../model/coco_80_labels_list.txt DESTINATION model)
+# message(${CMAKE_CURRENT_SOURCE_DIR})
 file(GLOB RKNN_FILES "${CMAKE_CURRENT_SOURCE_DIR}/../model/*.rknn")
 install(FILES ${RKNN_FILES} DESTINATION model)
+
+
+
+#cam library 생성
+add_library(cam_lib STATIC 
+    main.cc
+    postprocess.cc
+    ${rknpu_yolov8_file}
+)
+
+target_include_directories(cam_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIBRKNNRT_INCLUDES}
+    ${LIBTIMER_INCLUDES}
+)
+
+target_link_libraries(cam_lib
+    imageutils
+    fileutils
+    imagedrawing
+    ${LIBRKNNRT}
+    dl
+    ${OpenCV_LIBS}
+)
+
+
+

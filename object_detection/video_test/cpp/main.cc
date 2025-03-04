@@ -106,7 +106,7 @@ int main(int argc, char **argv)
         infer_timer.tik();
 
         // YOLO 모델 추론
-        ret = inference_yolov8_model(&rknn_app_ctx, &src_image, &od_results);
+        ret = inference_yolov8_model(&rknn_app_ctx, &src_image, &od_results);//npu 도는 부분
         infer_timer.tok();
 
         real_timer.tok();

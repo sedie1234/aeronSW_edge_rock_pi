@@ -1,0 +1,160 @@
+#include "cam_detect.h"
+
+Cam_Data cam_data;
+int Cam_Detect::cam_connect(){
+    cam_data.cap.open(cam_data.cam_index,cv::CAP_V4L2);
+    if(!cam_data.cap.isOpened()){
+        std::cerr << "[Error] : Could not open video source" << std::endl;
+        return -1;
+    }
+}
+int Cam_Detect::init(char** argv)
+{
+#if 1
+    // if (argc != 3)
+    // {
+    //     printf("%s <model_path> <CAM_index>\n", argv[0]);
+    //     return -1;
+    // }
+
+    const char *model_path = argv[1];
+    cam_data.cam_index = atoi(argv[2]);
+#elif 0
+    const char *model_path = "../../object_detection/video_test/model/yolov8.rknn";
+    int cam_index = 1;
+#endif
+      
+    int ret;
+    memset(&cam_data.rknn_app_ctx, 0, sizeof(rknn_app_context_t));
+
+    init_post_process();
+    
+    ret = init_yolov8_model(model_path, &cam_data.rknn_app_ctx);
+
+    if (ret != 0)
+    {
+        printf("init_yolov8_model fail! ret=%d model_path=%s\n", ret, model_path);
+        goto out;
+    }
+
+    if(Cam_Detect::cam_connect()!=0){
+        printf("cam_connect fail! \n");
+        goto out;
+    }
+
+    memset(&cam_data.src_image, 0, sizeof(image_buffer_t));
+    return 0;
+
+out:
+
+    deinit_post_process();
+
+    ret = release_yolov8_model(&cam_data.rknn_app_ctx);
+    if (ret != 0)
+    {
+        printf("release_yolov8_model fail! ret=%d\n", ret);
+    }
+
+    if (&cam_data.src_image.virt_addr != NULL)
+    {
+#if defined(RV1106_1103) 
+        dma_buf_free(rknn_app_ctx.img_dma_buf.size, &rknn_app_ctx.img_dma_buf.dma_buf_fd, 
+                    rknn_app_ctx.img_dma_buf.dma_buf_virt_addr);
+#else
+        free(&cam_data.src_image.virt_addr);
+#endif
+    }
+    return -1;
+
+}
+
+object_detect_result_list Cam_Detect::object_detect(){ 
+
+    TIMER infer_timer, real_timer, show_timer;
+    int ret;
+
+    // system("clear"); // 콘솔 화면 지우는 동작
+    real_timer.tik();
+    show_timer.tik();
+    
+    cv::Mat frame;
+    // cam_data.cap >> frame;
+    if (!cam_data.cap.read(frame)){ // 카메라 연결하는 부분
+        std::cerr << "Error: Frame not captured!" << std::endl;
+        goto out;
+    }
+    
+    cam_data.src_image.width = frame.cols;
+    cam_data.src_image.height = frame.rows;
+    cam_data.src_image.virt_addr = frame.data;
+    cam_data.src_image.size = frame.total() * frame.elemSize();
+    cam_data.src_image.width_stride = 1;
+    cam_data.src_image.height_stride = 1;
+    cam_data.src_image.format = IMAGE_FORMAT_RGB888;
+
+    object_detect_result_list od_results;
+
+    infer_timer.tik();
+
+    // YOLO 모델 추론
+    ret = inference_yolov8_model(&cam_data.rknn_app_ctx, &cam_data.src_image, &od_results);//npu 도는 부분
+    infer_timer.tok();
+
+    real_timer.tok();
+
+    if (ret != 0) {
+        printf("init_yolov8_model fail! ret=%d\n", ret);
+        goto out;
+    }
+
+    char text[256];
+
+    for (int i = 0; i < od_results.count; i++) {
+        object_detect_result *det_result = &(od_results.results[i]);
+        
+        printf("%s @ (%d %d %d %d) %.3f\n", coco_cls_to_name(det_result->cls_id),
+            det_result->box.left, det_result->box.top,
+            det_result->box.right, det_result->box.bottom,
+            det_result->prop);
+        
+        int x1 = det_result->box.left;
+        int y1 = det_result->box.top;
+        int x2 = det_result->box.right;
+        int y2 = det_result->box.bottom;
+#if 1
+
+        // OpenCV를 사용하여 직접 프레임에 사각형 그리기
+        cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0), 2);
+
+        // 텍스트 오버레이
+        sprintf(text, "%s %.1f%%", coco_cls_to_name(det_result->cls_id), det_result->prop * 100);
+        cv::putText(frame, text, cv::Point(x1, y1 - 10), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 2);
+#endif
+    }
+#if 1
+    // OpenCV 화면 출력
+    cv::imshow("inference", frame);
+#endif
+    show_timer.tok();
+
+    printf("show ver frame fps : %f fps\n", 1000/show_timer.get_time());
+    printf("inference time frame fps : %f fps\n", 1000/infer_timer.get_time());
+    printf("real time frame fps : %f fps\n", 1000/real_timer.get_time());
+
+#if 1
+    // ESC(27) 키를 누르면 종료
+    if (cv::waitKey(1) == 27) {
+        // break;
+        printf("camera view exit\n");
+        goto out;
+    }
+#endif
+    return od_results;
+
+out :
+    cam_data.cap.release();
+    cv::destroyAllWindows();
+    cam_connect();
+
+}
+

@@ -1,4 +1,5 @@
 #include "my_rdkafka_producer.h"
+#include "cam_detect.h"
 
 /* Producer Delivery_Report_Callback */
 void Delivery_Report_Callback::dr_cb(RdKafka::Message &message){
@@ -47,6 +48,7 @@ void Kafka_Producer::set_kafka_conf(){ //default
         std::cerr << err_str << std::endl;
         exit(1);
     }
+
 }
 
 void Kafka_Producer::set_kafka_conf(std::string set_string){
@@ -81,19 +83,19 @@ void Kafka_Producer::gen_kafka_producer(){
 }
 */
 void* Kafka_Producer::push_topic_t(void* arg){
-
     Thread_Args* args = static_cast<Thread_Args*>(arg);
     std::string generatedData = args->generator->generate();
+
     Kafka_Producer prd = *(args->producer);
 
     while(run){
-
-        std::string msg = args->generator->generate();
+        std::string msg = args->generator->generate(); //이부분이 실행되면 카메라/ IMU  센서 동작 한번 실행 , 데이터 읽어옴
         
         std::cout << " Producer Send : " << msg << std::endl;
 
         // 메세지 비어있는 경우,, 전송 안하고 Message Callback 
         if(msg.empty()){
+            std::cout <<"here??"<<std::endl;
             prd.producer->poll(0);
             continue;
         }
@@ -111,7 +113,7 @@ void* Kafka_Producer::push_topic_t(void* arg){
             NULL
         );
         
-        if(err != RdKafka::ERR_NO_ERROR){
+        if(err != RdKafka::ERR_NO_ERROR){ //YU0326 : message timed out 발생 , 원인 몰라, 해결방법 몰라 에러 발생 후 해결되지 않음.
             std::cerr << "% Failed to produce to topic " << prd.topic << ": " << RdKafka::err2str(err) << std::endl;
 
             if(err == RdKafka::ERR__QUEUE_FULL){ 
@@ -119,6 +121,7 @@ void* Kafka_Producer::push_topic_t(void* arg){
                 prd.producer->poll(1000); /* block for max 1000ms */
                 goto retry; // 가져가면 재전송
             }
+
         }else{
             std::cerr << "% Enqueued Message (" << msg.size() << "bytes) " << "for topic " << prd.topic <<std::endl;
         }
