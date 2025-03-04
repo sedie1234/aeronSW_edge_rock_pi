@@ -15,7 +15,7 @@ third_party_code/
 *.pch
 
 # Compiled Dynamic libraries
-# *.so
+*.so
 *.dylib
 *.dll
 

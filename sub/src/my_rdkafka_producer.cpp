@@ -82,105 +82,86 @@ void* Kafka_Producer::push_topic_t(void* data){
     Kafka_Producer prd = *static_cast<Kafka_Producer*>(data);
     UUID uuid; 
     
-    // 현재는 개발 편의상 풀링 방식으로 되어있음... --> 나중에 while 문 안쪽 block 시켜놓고 인터럽트 발생했을때 동작하는 (sigwait)방식으로 변경. 
     while(run){
-        if(req_sig == 1){
-            req_sig = 0;
+        
+        auto now = std::chrono::system_clock::now();
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
-            /* Kafka 브로커 시간 설정 */
-            /* 
-            서브보드 로컬 시스템 시간 (Kafka 서버시간과 동기화 필요)
-                1. Timezone seoul 로 변경, 
-                2. NTP 서버 (Chrony) 설치 
-                    sudo apt install chrony
-                    
-                3. Main Board의 NTP 서버 시간과 동기화
-                    sudo vi /etc/chrony/chrony.conf
-                    -> "pool ntp.ubuntu ...", "pool 0.ubuntu.." 전부 주석처리 (인터넷 연결되어 있을때 시간 동기화 하는 곳)
-                    "server 192.168.0.205 iburst" 추가  --> 메인서버에 열어놓은 NTP 시간과 동기화 됨
+        /* JSON request 메시지 생성 예시.. */
+        Rapid_Json_Handler json_handler;
+        //schema
+        json_handler.add_member_p("/schema/type", "struct");
+        std::vector<Fields_Info> fields = {
+            //type      optional    field
+            {"string",  false,      "msg_uuid"},
+            {"string",  false,      "req_uuid"},
+            {"string",  false,      "sensor"},
+            {"string",  false,      "msg_type"},
+            {"string",  false,      "data"},
+            {"int64",   false,      "time_stamp"}
+        };
 
-                    sudo systemctl restart chronyd
-                    chronyc sources -v --> ^* 192.168.0.205 가 떠야함
-                    chronyc tracking --> 동작 확인
-            */
+        Value jsonArray(kArrayType); 
 
-            auto now = std::chrono::system_clock::now();
-            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        for (const auto& field : fields) {
+            Value jsonObject(kObjectType);
+            jsonObject.AddMember("type", Value(field.type.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
+            jsonObject.AddMember("optional", Value(field.optional), json_handler.document.GetAllocator());
+            jsonObject.AddMember("field", Value(field.field.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
+            jsonArray.PushBack(jsonObject, json_handler.document.GetAllocator());
+        }
+        json_handler.add_member_p("/schema/fields", jsonArray);
 
-            /* JSON request 메시지 생성 예시.. */
-            Rapid_Json_Handler json_handler;
-            //schema
-            json_handler.add_member_p("/schema/type", "struct");
-            std::vector<Fields_Info> fields = {
-                //type      optional    field
-                {"string",  false,      "msg_uuid"},
-                {"string",  false,      "req_uuid"},
-                {"string",  false,      "sensor"},
-                {"string",  false,      "msg_type"},
-                {"string",  false,      "data"},
-                {"int64",   false,      "time_stamp"}
-            };
+        // Payload 
+        json_handler.add_member_p("/payload/msg_uuid", uuid.generate_uuid());
+        json_handler.add_member_p("/payload/req_uuid", req_id);
+        json_handler.add_member_p("/payload/sensor", "camera1");
+        json_handler.add_member_p("/payload/msg_type", "detected_object");
+        json_handler.add_member_p("/payload/data", "{\"cam_id\":\"123123\",\"detected_class\":\"bird\",\"xyxy\":\"[23.12, 32.32, 12.1, 30.1]\"}");
+        json_handler.add_member_p("/payload/time_stamp", now_ms);
+        
+        // std::cout << "generate json : ";
+        // json_handler.print_json();
+        
+        /* ************************************* */
 
-            Value jsonArray(kArrayType); 
+        std::string msg = json_handler.get_json_string();
+        std::cout << " now ms : " << now_ms << std::endl;
+        std::cout << " Producer Send : " << msg << std::endl;
 
-            for (const auto& field : fields) {
-                Value jsonObject(kObjectType);
-                jsonObject.AddMember("type", Value(field.type.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
-                jsonObject.AddMember("optional", Value(field.optional), json_handler.document.GetAllocator());
-                jsonObject.AddMember("field", Value(field.field.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
-                jsonArray.PushBack(jsonObject, json_handler.document.GetAllocator());
+        // 메세지 비어있는 경우,, 전송 안하고 Message Callback 
+        if(msg.empty()){
+            prd.producer->poll(0);
+            continue;
+        }
+
+        //std::cout << "topic : " << prd.topic << std::endl;
+        retry: 
+        RdKafka::ErrorCode err = prd.producer->produce(
+            prd.topic, /*topic name*/
+            RdKafka::Topic::PARTITION_UA,   /* Any Partition */
+            RdKafka::Producer::RK_MSG_COPY, /* Copy payload */
+            const_cast<char*>(msg.c_str()), msg.size(), /* Message */
+            NULL, 0, /*key*/
+            now_ms, /*time stamp (defaults to current time)*/
+            NULL, 
+            NULL
+        );
+        
+        if(err != RdKafka::ERR_NO_ERROR){
+            std::cerr << "% Failed to produce to topic " << prd.topic << ": " << RdKafka::err2str(err) << std::endl;
+
+            if(err == RdKafka::ERR__QUEUE_FULL){ 
+            /* Queue 가 full 났을 경우 Consumer 가 Message 가져갈때까지 기다림 */
+                prd.producer->poll(1000); /* block for max 1000ms */
+                goto retry; // 가져가면 재전송
             }
-            json_handler.add_member_p("/schema/fields", jsonArray);
-
-            // Payload 
-            json_handler.add_member_p("/payload/msg_uuid", uuid.generate_uuid());
-            json_handler.add_member_p("/payload/req_uuid", req_id);
-            json_handler.add_member_p("/payload/sensor", "camera1");
-            json_handler.add_member_p("/payload/msg_type", "detected_object");
-            json_handler.add_member_p("/payload/data", "{\"cam_id\":\"123123\",\"detected_class\":\"bird\",\"xyxy\":\"[23.12, 32.32, 12.1, 30.1]\"}");
-            json_handler.add_member_p("/payload/time_stamp", now_ms);
+        }else{
+            std::cerr << "% Enqueued Message (" << msg.size() << "bytes) " << "for topic " << prd.topic <<std::endl;
+        }
+        prd.producer->poll(0); //message delivered to topic - 메시지를 브로커로 전송한후, 성공적으로 전송되었는지 전달 보고서(Delivery Callback)를 콜백함. poll(0) 은 dr_cb를 호출 
             
-            // std::cout << "generate json : ";
-            // json_handler.print_json();
-            
-            /* ************************************* */
-
-            std::string msg = json_handler.get_json_string();
-            std::cout << " Producer Send : " << msg << std::endl;
-
-            // 메세지 비어있는 경우,, 전송 안하고 Message Callback 
-            if(msg.empty()){
-                prd.producer->poll(0);
-                continue;
-            }
-
-            //std::cout << "topic : " << prd.topic << std::endl;
-            retry: 
-            RdKafka::ErrorCode err = prd.producer->produce(
-                prd.topic, /*topic name*/
-                RdKafka::Topic::PARTITION_UA,   /* Any Partition */
-                RdKafka::Producer::RK_MSG_COPY, /* Copy payload */
-                const_cast<char*>(msg.c_str()), msg.size(), /* Message */
-                NULL, 0, /*key*/
-                now_ms, /*time stamp (defaults to current time)*/
-                NULL, 
-                NULL
-            );
-            
-            if(err != RdKafka::ERR_NO_ERROR){
-                std::cerr << "% Failed to produce to topic " << prd.topic << ": " << RdKafka::err2str(err) << std::endl;
-
-                if(err == RdKafka::ERR__QUEUE_FULL){ 
-                /* Queue 가 full 났을 경우 Consumer 가 Message 가져갈때까지 기다림 */
-                    prd.producer->poll(1000); /* block for max 1000ms */
-                    goto retry; // 가져가면 재전송
-                }
-            }else{
-                std::cerr << "% Enqueued Message (" << msg.size() << "bytes) " << "for topic " << prd.topic <<std::endl;
-            }
-            prd.producer->poll(0); //message delivered to topic - 메시지를 브로커로 전송한후, 성공적으로 전송되었는지 전달 보고서(Delivery Callback)를 콜백함. poll(0) 은 dr_cb를 호출 
-        }        
-        //usleep(prd.freq);
+        usleep(prd.freq);
     }
 
     std::cerr << "%  Flushing final Messages.. " << std::endl;
