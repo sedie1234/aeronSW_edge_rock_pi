@@ -1,22 +1,34 @@
 #include "cam_detect.h"
 
+#include <thread>
+#define CAM_VISIBLE 1
+#define RECONNECT 5
+
 Cam_Data cam_data;
 int Cam_Detect::cam_connect(){
-    cam_data.cap.open(cam_data.cam_index,cv::CAP_V4L2);
-    if(!cam_data.cap.isOpened()){
-        std::cerr << "[Error] : Could not open video source" << std::endl;
-        return -1;
+    for(int i=0; i<RECONNECT; i++){
+        std::cout << i<<"번 재연결시도"<<std::endl;
+        cam_data.cap.release();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));// 여유시간 얼마나?
+
+        cam_data.cap.open(cam_data.cam_index,cv::CAP_V4L2); 
+
+        //640*480 30fps
+        std::cout << "Actual resolution: "
+          << cam_data.cap.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
+          << cam_data.cap.get(cv::CAP_PROP_FRAME_HEIGHT) << std::endl;
+          
+        if(cam_data.cap.isOpened()){
+            std::cerr << "Open video source" << std::endl;
+            return 0;
+        }
     }
+    std::cerr << "[Error] : Could not open video source" << std::endl;
+    return -1;
 }
 int Cam_Detect::init(char** argv)
 {
 #if 1
-    // if (argc != 3)
-    // {
-    //     printf("%s <model_path> <CAM_index>\n", argv[0]);
-    //     return -1;
-    // }
-
     const char *model_path = argv[1];
     cam_data.cam_index = atoi(argv[2]);
 #elif 0
@@ -79,7 +91,7 @@ object_detect_result_list Cam_Detect::object_detect(){
     
     cv::Mat frame;
     // cam_data.cap >> frame;
-    if (!cam_data.cap.read(frame)){ // 카메라 연결하는 부분
+    if (!cam_data.cap.read(frame)|| frame.empty()){ // 카메라 연결하는 부분
         std::cerr << "Error: Frame not captured!" << std::endl;
         goto out;
     }
@@ -121,7 +133,7 @@ object_detect_result_list Cam_Detect::object_detect(){
         int y1 = det_result->box.top;
         int x2 = det_result->box.right;
         int y2 = det_result->box.bottom;
-#if 1
+#if CAM_VISIBLE
 
         // OpenCV를 사용하여 직접 프레임에 사각형 그리기
         cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0), 2);
@@ -131,7 +143,7 @@ object_detect_result_list Cam_Detect::object_detect(){
         cv::putText(frame, text, cv::Point(x1, y1 - 10), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 2);
 #endif
     }
-#if 1
+#if CAM_VISIBLE
     // OpenCV 화면 출력
     cv::imshow("inference", frame);
 #endif
@@ -141,7 +153,7 @@ object_detect_result_list Cam_Detect::object_detect(){
     printf("inference time frame fps : %f fps\n", 1000/infer_timer.get_time());
     printf("real time frame fps : %f fps\n", 1000/real_timer.get_time());
 
-#if 1
+#if CAM_VISIBLE
     // ESC(27) 키를 누르면 종료
     if (cv::waitKey(1) == 27) {
         // break;
@@ -152,9 +164,18 @@ object_detect_result_list Cam_Detect::object_detect(){
     return od_results;
 
 out :
-    cam_data.cap.release();
+    // cam_data.cap.release();
+    #if CAM_VISIBLE
     cv::destroyAllWindows();
+    #endif
     cam_connect();
 
 }
 
+
+//YU 0401
+// [ WARN:0@21702.680] global cap_v4l.cpp:999 open VIDEOIO(V4L2:/dev/video1): can't open camera by index
+// [ WARN:0@21702.683] global cap.cpp:342 open VIDEOIO(V4L2): backend is generally available but can't be used to capture by index 
+// = opencv에서 v4l2 백엔드 사용할 수 있지만 지정된 인덱스로 카메라를 열 수 없어 실패했다 
+// = 연결은 끊겼는데 다시 연결했을때 이전의 사용프로세스가 종료되지 않은 상태?여서 다시 연결할 수 없는 상태인건가? => release 와 open 사이 time 추가
+// 이 문구 후 sub(camera thread) 동작없음 

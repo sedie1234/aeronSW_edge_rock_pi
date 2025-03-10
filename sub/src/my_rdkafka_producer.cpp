@@ -95,7 +95,6 @@ void* Kafka_Producer::push_topic_t(void* arg){
 
         // 메세지 비어있는 경우,, 전송 안하고 Message Callback 
         if(msg.empty()){
-            std::cout <<"here??"<<std::endl;
             prd.producer->poll(0);
             continue;
         }
@@ -113,7 +112,7 @@ void* Kafka_Producer::push_topic_t(void* arg){
             NULL
         );
         
-        if(err != RdKafka::ERR_NO_ERROR){ //YU0326 : message timed out 발생 , 원인 몰라, 해결방법 몰라 에러 발생 후 해결되지 않음.
+        if(err != RdKafka::ERR_NO_ERROR){
             std::cerr << "% Failed to produce to topic " << prd.topic << ": " << RdKafka::err2str(err) << std::endl;
 
             if(err == RdKafka::ERR__QUEUE_FULL){ 

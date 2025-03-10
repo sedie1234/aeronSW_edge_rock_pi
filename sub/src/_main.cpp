@@ -12,6 +12,8 @@
 #include "cam_detect.h"
 #include <string.h>
 
+#define IMU 1
+
 extern "C"{
     #include "imu.h"
 }
@@ -35,9 +37,9 @@ void* thread_handler(void* data);
 
 int main(int argc, char **argv)
 {
-    if (argc != 4)
+    if (argc != 3)
     {
-        printf("%s <model_path> <CAM_index> <imu_interval>\n", argv[0]);
+        printf("%s <model_path> <CAM_index> \n", argv[0]);
 
         return -1;
     }
@@ -48,14 +50,17 @@ int main(int argc, char **argv)
         return -1;
     }
 
+#if IMU
     //IMU init
     // int interval=std::stoi(argv[3]);
     int interval=FREQ/1000; //us to ms
-    if(imu_init(interval)!=0) { //interval >300 => 15 ~16 데이터 출력 차이 500~600ms  
+    //interval >300 => 15 ~16 데이터 출력 차이 500~600ms  
+    if(imu_init(interval)!=0) { 
         std::cerr <<"failed IMU init"<< std::endl;
         return -1;
     }
 
+#endif
     setup_sig_handler();
     auto th_handler = std::unique_ptr<pthread_t, PThreadDeleter>(new pthread_t);    
     if(pthread_create(th_handler.get(), nullptr, thread_handler, nullptr) != 0){
@@ -103,10 +108,10 @@ void* thread_handler(void* data){
 
     auto cam_data = std::make_shared<Cam_Data_Generator>(); //카메라 데이터 생성 객체
     data_generators.push_back(cam_data);
-   
+ #if IMU  
     auto imu_data = std::make_shared<IMU_Data_Generator>(); //IMU 데이터 생성 객체
     data_generators.push_back(imu_data);
-
+#endif
     for (const auto& generator : data_generators) { //Vector 안에 있는 객체별로 생성 + 전송 하는 코드
         
         // 각 센서별로 producer instance 생성, 
