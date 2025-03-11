@@ -26,6 +26,9 @@ Kafka_Producer::Kafka_Producer(std::string brk, std::string tp, unsigned int f){
     std::cout << "PRODUCER : Send Frequency : " << freq << "ms" << std::endl;
 
     Kafka_Producer::create_kafka_conf();
+    Kafka_Producer::set_kafka_conf();
+    Kafka_Producer::gen_kafka_producer();
+
 }
 
 void Kafka_Producer::create_kafka_conf(){
@@ -77,56 +80,16 @@ void Kafka_Producer::gen_kafka_producer(){
     "data" = {\"req\" : \"1\"},                             // data 는 json format의 string 으로 통일.
 }
 */
-void* Kafka_Producer::push_topic_t(void* data){
+void* Kafka_Producer::push_topic_t(void* arg){
 
-    Kafka_Producer prd = *static_cast<Kafka_Producer*>(data);
-    UUID uuid; 
-    
+    Thread_Args* args = static_cast<Thread_Args*>(arg);
+    std::string generatedData = args->generator->generate();
+    Kafka_Producer prd = *(args->producer);
+
     while(run){
+
+        std::string msg = args->generator->generate();
         
-        auto now = std::chrono::system_clock::now();
-        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-
-        /* JSON request 메시지 생성 예시.. */
-        Rapid_Json_Handler json_handler;
-        //schema
-        json_handler.add_member_p("/schema/type", "struct");
-        std::vector<Fields_Info> fields = {
-            //type      optional    field
-            {"string",  false,      "msg_uuid"},
-            {"string",  false,      "req_uuid"},
-            {"string",  false,      "sensor"},
-            {"string",  false,      "msg_type"},
-            {"string",  false,      "data"},
-            {"int64",   false,      "time_stamp"}
-        };
-
-        Value jsonArray(kArrayType); 
-
-        for (const auto& field : fields) {
-            Value jsonObject(kObjectType);
-            jsonObject.AddMember("type", Value(field.type.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
-            jsonObject.AddMember("optional", Value(field.optional), json_handler.document.GetAllocator());
-            jsonObject.AddMember("field", Value(field.field.c_str(), json_handler.document.GetAllocator()), json_handler.document.GetAllocator());
-            jsonArray.PushBack(jsonObject, json_handler.document.GetAllocator());
-        }
-        json_handler.add_member_p("/schema/fields", jsonArray);
-
-        // Payload 
-        json_handler.add_member_p("/payload/msg_uuid", uuid.generate_uuid());
-        json_handler.add_member_p("/payload/req_uuid", req_id);
-        json_handler.add_member_p("/payload/sensor", "camera1");
-        json_handler.add_member_p("/payload/msg_type", "detected_object");
-        json_handler.add_member_p("/payload/data", "{\"cam_id\":\"123123\",\"detected_class\":\"bird\",\"xyxy\":\"[23.12, 32.32, 12.1, 30.1]\"}");
-        json_handler.add_member_p("/payload/time_stamp", now_ms);
-        
-        // std::cout << "generate json : ";
-        // json_handler.print_json();
-        
-        /* ************************************* */
-
-        std::string msg = json_handler.get_json_string();
-        std::cout << " now ms : " << now_ms << std::endl;
         std::cout << " Producer Send : " << msg << std::endl;
 
         // 메세지 비어있는 경우,, 전송 안하고 Message Callback 
@@ -143,7 +106,7 @@ void* Kafka_Producer::push_topic_t(void* data){
             RdKafka::Producer::RK_MSG_COPY, /* Copy payload */
             const_cast<char*>(msg.c_str()), msg.size(), /* Message */
             NULL, 0, /*key*/
-            now_ms, /*time stamp (defaults to current time)*/
+            0, /*time stamp (defaults to current time)*/
             NULL, 
             NULL
         );

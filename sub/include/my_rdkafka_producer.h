@@ -6,9 +6,8 @@
 #include "kafka/rdkafkacpp.h"
 #include "sig_handler.h"
 
-//메시지 생성 관련 Header
-#include "rapid_json_handler.h"
-#include "utils/uuid.h"
+//데이터 생성 관련 Header
+#include "data_generator.h"
 
 /* Producer */
 class Delivery_Report_Callback : public RdKafka::DeliveryReportCb{
@@ -40,12 +39,10 @@ class Kafka_Producer{
     
 };
 
-//카프카 Connector Sink DB 저장을 위한 Schema 폼
-struct Fields_Info{
-    std::string type;
-    bool optional;
-    std::string field;
+//Thread args
+struct Thread_Args{
+    std::shared_ptr<IData_Generator> generator;     // Input Data generate Class Args
+    Kafka_Producer* producer;                       // Kafka Producer Class Args
 };
-
 
 #endif
