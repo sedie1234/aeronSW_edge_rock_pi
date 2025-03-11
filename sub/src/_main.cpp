@@ -24,14 +24,14 @@ std::vector<Thread_Args*> thread_args_Pool;
 std::vector<pthread_t*> producer_thread_Manager; 
 Kafka_Producer set_prd_status(const std::string broker, std::string topic, unsigned int FREQ);
 
-void* thread_executor(void* data);
+void* thread_handler(void* data);
 
 int main(){
 
     setup_sig_handler();
     auto th_handler = std::unique_ptr<pthread_t, PThreadDeleter>(new pthread_t);    
 
-    if(pthread_create(th_handler.get(), nullptr, thread_executor, nullptr) != 0){
+    if(pthread_create(th_handler.get(), nullptr, thread_handler, nullptr) != 0){
         std::cerr << "failed generate Thread " << std::endl; 
         return -1;    
     }
@@ -63,7 +63,7 @@ int main(){
     return 0;
 }
 
-void* thread_executor(void* data){
+void* thread_handler(void* data){
     (void)data;
 
     /* ============================== 
@@ -106,7 +106,7 @@ void* thread_executor(void* data){
     while(run){ sleep(1); }
 
 
-    //thread_executor 종료
+    //thread_handler 종료
     return nullptr;
 }
 
