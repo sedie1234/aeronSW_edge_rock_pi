@@ -53,9 +53,9 @@ int main(int argc, char **argv)
 #if IMU
     //IMU init
     // int interval=std::stoi(argv[3]);
-    int interval=FREQ/1000; //us to ms
+    int interval=10; //FREQ/1000; //us to ms 
     //interval >300 => 15 ~16 데이터 출력 차이 500~600ms  
-    if(imu_init(interval)!=0) { 
+    if(imu_init(interval)!=0){ 
         std::cerr <<"failed IMU init"<< std::endl;
         return -1;
     }
@@ -107,9 +107,11 @@ void* thread_handler(void* data){
     std::vector<std::shared_ptr<IData_Generator>> data_generators; //생성된 객체를 Vector 에 넣음
 
     auto cam_data = std::make_shared<Cam_Data_Generator>(); //카메라 데이터 생성 객체
+    cam_data->run_camera_thread();
     data_generators.push_back(cam_data);
- #if IMU  
+#if IMU  
     auto imu_data = std::make_shared<IMU_Data_Generator>(); //IMU 데이터 생성 객체
+    imu_data->run_imu_thread();
     data_generators.push_back(imu_data);
 #endif
     for (const auto& generator : data_generators) { //Vector 안에 있는 객체별로 생성 + 전송 하는 코드
@@ -133,16 +135,17 @@ void* thread_handler(void* data){
             delete push_data_t;
         }
         #elif 1 //yu 0320 수정함 pthread_t 동적할당하지 않고 사용
-        pthread_t push_data_t;
-        if(pthread_create(&push_data_t, nullptr, Kafka_Producer::push_topic_t, ta) != 0){
+        pthread_t* push_data_t=new pthread_t;
+        if(pthread_create(push_data_t, nullptr, Kafka_Producer::push_topic_t, ta) != 0){
             std::cerr << "failed generate producer Thread " << std::endl; 
             perror("producer_threads");
+            delete push_data_t;
             exit(1);
         }
         else{
             producer_Pool.push_back(prd);
             thread_args_Pool.push_back(ta);
-            producer_thread_Manager.push_back(&push_data_t);
+            producer_thread_Manager.push_back(push_data_t);
             // delete &push_data_t;
         }
 

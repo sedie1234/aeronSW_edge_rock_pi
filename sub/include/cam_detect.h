@@ -18,6 +18,8 @@
     #include "dma_alloc.hpp"
 #endif
 
+#include "sensor_queue.h"
+
 
 //카메라 이미지 인식 관련 데이터
 struct Cam_Data {

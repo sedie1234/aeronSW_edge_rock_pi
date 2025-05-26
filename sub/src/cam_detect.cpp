@@ -85,7 +85,8 @@ object_detect_result_list Cam_Detect::object_detect(){
     TIMER infer_timer, real_timer, show_timer;
     int ret;
 
-    // system("clear"); // 콘솔 화면 지우는 동작
+    system("clear"); // 콘솔 화면 지우는 동작
+
     real_timer.tik();
     show_timer.tik();
     
@@ -119,6 +120,7 @@ object_detect_result_list Cam_Detect::object_detect(){
         goto out;
     }
 
+    //print result 
     char text[256];
 
     for (int i = 0; i < od_results.count; i++) {
