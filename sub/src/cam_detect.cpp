@@ -1,10 +1,48 @@
 #include "cam_detect.h"
 
 #include <thread>
-#define CAM_VISIBLE 1
+#include <fstream>
+#include <sstream>
+#include <unordered_map>
+
+#define CAM_VISIBLE 0
 #define RECONNECT 5
 
 Cam_Data cam_data;
+
+void cam_info(){
+    // 카메라 정보 출력(메인보드와의 거리, 수평, 수직 시야각) => 추후 메인 전송
+    //로지텍 웹캠 C270 640*480 30fps 4:3 비율 dFOV 55도 -> 수직V : 35도, 수평H : 45도 예상
+    // config 파일
+
+    std::ifstream file("config.txt"); //build/sub
+    std::string line;
+    std::unordered_map<std::string, std::string> config;
+    
+    while(std::getline(file,line)){
+        std::istringstream is_line(line);
+        std::string key;
+        if(std::getline(is_line,key,'=')){
+            std::string value;
+            if(std::getline(is_line,value)) config[key]=value;
+        }
+    }
+    
+    std::cout << "CAMERA Information " <<std::endl; 
+    std::cout << "CAMERA model : " <<config["model_name"]<<std::endl; 
+    std::cout << "Width x Height : "<<config["width"] <<"x"<<config["height"] <<std::endl;
+    std::cout << "FPS : " << config["fps"] << std::endl;
+
+    std::cout << "dFOV : "<<config["dfov"]<<std::endl; 
+    std::cout << "vFOV : "<<config["vfov"]<< std::endl;
+    std::cout << "hFOV : "<<config["hfov"]<< std::endl;
+
+    std::cout<<"Distance from main board : " << config["distance_from_main"] <<std::endl;
+
+    
+}
+
+
 int Cam_Detect::cam_connect(){
     for(int i=0; i<RECONNECT; i++){
         std::cout << i<<"번 재연결시도"<<std::endl;
@@ -35,7 +73,9 @@ int Cam_Detect::init(char** argv)
     const char *model_path = "../../object_detection/video_test/model/yolov8.rknn";
     int cam_index = 1;
 #endif
-      
+
+    cam_info();
+
     int ret;
     memset(&cam_data.rknn_app_ctx, 0, sizeof(rknn_app_context_t));
 
@@ -53,6 +93,8 @@ int Cam_Detect::init(char** argv)
         printf("cam_connect fail! \n");
         goto out;
     }
+
+    
 
     memset(&cam_data.src_image, 0, sizeof(image_buffer_t));
     return 0;
@@ -122,6 +164,8 @@ object_detect_result_list Cam_Detect::object_detect(){
 
     //print result 
     char text[256];
+
+    printf("od_results.count= %d\n",od_results.count);
 
     for (int i = 0; i < od_results.count; i++) {
         object_detect_result *det_result = &(od_results.results[i]);

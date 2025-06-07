@@ -3,13 +3,22 @@
 // #include <rapidjson/writer.h>
 // #include <rapidjson/stringbuffer.h>
 
-#include <string.h>
+#include <string>
 #include <ctime>
 
 #include <thread>
 
 extern "C"{
     #include "imu.h"
+}
+
+void IData_Generator::gen_init(char** argv){
+    //group 번호 설정
+    std::string input=argv[3];
+    if(input.find("sub") != std::string::npos){
+        SUB_GROUP=argv[3];
+    }
+    else SUB_GROUP=SUB_GROUP+input;
 }
 
 void Cam_Data_Generator::run_camera_thread(){
@@ -162,13 +171,14 @@ std::string Cam_Data_Generator::generate(){
     Value cam_json(kArrayType);
 
     Value camObject(kObjectType);
-    camObject.AddMember("cam_id","123",allocator); //AddMember : key-value
+    
+    camObject.AddMember("cam_id",CAM_ID,allocator); //AddMember : key-value
 
     Value detArray(kArrayType);
 #if TIME
     for(int i=0; i<cam_det_result.data.count; i++){ // YU0324 count =0 일 경우: 1) frame capture 못한 경우(카메라 연결 에러), 2) 인식된 객체 없는 경우(정상) => 객체 인식된 경우에만 보내도록?
         //   "{
-            printf("cam_det_result.data.count= %d\n",cam_det_result.data.count );
+            // printf("cam_det_result.data.count= %d\n",cam_det_result.data.count );
             Value camObjects(kObjectType);
             object_detect_result *result= &(cam_det_result.data.results[i]);
 #else
@@ -210,7 +220,10 @@ std::string Cam_Data_Generator::generate(){
 
     // Payload 
     json_handler.add_member_p("/payload/msg_uuid", uuid.generate_uuid());
-    json_handler.add_member_p("/payload/group", "sub0");// 후에 수정
+    
+    // json_handler.add_member_p("/payload/group", "sub0");// 후에 수정
+    // json_handler.add_member_p("/payload/sensor", "camera1");
+    json_handler.add_member_p("/payload/group", SUB_GROUP);
     json_handler.add_member_p("/payload/sensor", "camera1");
     json_handler.add_member_p("/payload/msg_type", "detected_object");
 
@@ -284,7 +297,7 @@ std::string IMU_Data_Generator::generate(){
     // imu data
     Value imu_json(kObjectType);// key-value
     
-    imu_json.AddMember("imu_id", "123456",allocator);
+    imu_json.AddMember("imu_id", IMU_ID,allocator);
     #if 0
     imu_json.AddMember("data" ,Value(imu_buffer_15,allocator), allocator);
     #endif
@@ -324,7 +337,7 @@ std::string IMU_Data_Generator::generate(){
 
     // Payload 
     json_handler.add_member_p("/payload/msg_uuid", uuid.generate_uuid());
-    json_handler.add_member_p("/payload/group", "sub0");// 후에 수정
+    json_handler.add_member_p("/payload/group", SUB_GROUP);// 후에 수정
     json_handler.add_member_p("/payload/sensor", "imu");
     json_handler.add_member_p("/payload/msg_type", "imu_data");
     // json_handler.add_member_p("/payload/data", "{\"imu_id\":\"456456\",\"acc\":\"[0.1, 0.1, 1.0]\"}");

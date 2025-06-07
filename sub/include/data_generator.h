@@ -22,12 +22,15 @@ struct TimeData{ // push, pop 되는 시간 추가 data
 };
 
 #endif
+
 //카프카 Connector Sink DB 저장을 위한 Schema 폼
 struct Fields_Info{
     std::string type;
     bool optional;
     std::string field;
 };
+
+static std::string SUB_GROUP="sub";
 
 //데이터 생성 클래스 공통 인터페이스
 class IData_Generator{
@@ -36,6 +39,7 @@ class IData_Generator{
         virtual std::string generate() = 0;
 
         // virtual int init(int argc, char** argv);
+        static void gen_init(char** argv);
 
         // Getter 함수 
         virtual std::string get_broker() const = 0;
@@ -84,6 +88,7 @@ class IMU_Data_Generator : public IData_Generator{
         const std::string PRD_BROKER = "192.168.0.205";
         const std::string PRD_TOPIC = "sub0_imu";
         const unsigned int FREQ = 100000;//0.1s
+
 #if TIME
         std::shared_ptr<DataQueue<TimeData<char*>>> data_queue_imu;
 #else

@@ -37,12 +37,14 @@ void* thread_handler(void* data);
 
 int main(int argc, char **argv)
 {
-    if (argc != 3)
+    if (argc != 4)
     {
-        printf("%s <model_path> <CAM_index> \n", argv[0]);
+        printf("%s <model_path> <CAM_index> <sub+groupIdx>\n", argv[0]);
 
         return -1;
     }
+    
+    IData_Generator::gen_init(argv);
 
     //cam init
     if(Cam_Detect::init(argv)!=0){
@@ -134,7 +136,7 @@ void* thread_handler(void* data){
             producer_thread_Manager.push_back(push_data_t);
             delete push_data_t;
         }
-        #elif 1 //yu 0320 수정함 pthread_t 동적할당하지 않고 사용
+        #elif 1 
         pthread_t* push_data_t=new pthread_t;
         if(pthread_create(push_data_t, nullptr, Kafka_Producer::push_topic_t, ta) != 0){
             std::cerr << "failed generate producer Thread " << std::endl; 

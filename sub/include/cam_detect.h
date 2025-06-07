@@ -9,6 +9,8 @@
 #include "image_drawing.h"
 #include "easy_timer.h"
 
+#include "sensor_queue.h"
+
 #include <sys/time.h>
 
 #include <opencv2/opencv.hpp>
@@ -18,8 +20,9 @@
     #include "dma_alloc.hpp"
 #endif
 
-#include "sensor_queue.h"
 
+#define CAM_ID "0"
+#define IMU_ID "0"
 
 //카메라 이미지 인식 관련 데이터
 struct Cam_Data {

@@ -1,6 +1,8 @@
 #include "my_rdkafka_producer.h"
 #include "cam_detect.h"
 
+#include <ctime>
+
 /* Producer Delivery_Report_Callback */
 void Delivery_Report_Callback::dr_cb(RdKafka::Message &message){
     if(message.err()) std::cerr << "% Message delivery failed : " << message.errstr() << std::endl;
@@ -89,6 +91,9 @@ void* Kafka_Producer::push_topic_t(void* arg){
     Kafka_Producer prd = *(args->producer);
 
     while(run){
+        clock_t start, fin;
+        double dur;
+        start=clock();
         std::string msg = args->generator->generate(); //이부분이 실행되면 카메라/ IMU  센서 동작 한번 실행 , 데이터 읽어옴
         
         std::cout << " Producer Send : " << msg << std::endl;
@@ -98,6 +103,11 @@ void* Kafka_Producer::push_topic_t(void* arg){
             prd.producer->poll(0);
             continue;
         }
+        fin=clock();
+
+        dur=(double)(fin-start)/CLOCKS_PER_SEC;
+        std::cout<< "generate time :"<<dur<<"초"<<std::endl;
+
 
         //std::cout << "topic : " << prd.topic << std::endl;
         retry: 
