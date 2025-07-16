@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
         return -1;
     }
-    
+
     IData_Generator::gen_init(argv);
 
     //cam init
@@ -82,6 +82,9 @@ int main(int argc, char **argv)
             //TODO 
 
         }else if(line == "exit"){
+            run = 0; 
+            break;
+        }else if(line == "q"){
             run = 0; 
             break;
         }else{   
