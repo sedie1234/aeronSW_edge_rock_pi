@@ -18,17 +18,21 @@ class DataQueue{
             std::lock_guard<std::mutex> lock(mtx_);
             q_.push(item);
             
-            if(q_.size()>=2) {
-                std::cout << label << " ----------------------push size : "<<q_.size()<< std::endl;
-            }
+            
+            std::cout << label << " ----------------------push size : "<<q_.size()<< std::endl;
+            
         }
         bool pop(T& item,const std::string& label){
             std::lock_guard<std::mutex> lock(mtx_);
 
+            std::cout <<"[data_queue]----------------------pop size : "<<q_.size()<< std::endl;
             if(q_.empty()) return false;
-
-            item=q_.front();
-            q_.pop();
+            
+            // 큐의 모든 데이터 pop , 가장 마지막 데이터만 리턴
+            while(!q_.empty()) {
+                item=q_.front();
+                q_.pop();            
+            }
 
             return true;
         }

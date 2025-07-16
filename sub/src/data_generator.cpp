@@ -12,6 +12,7 @@ extern "C"{
     #include "imu.h"
 }
 
+
 void IData_Generator::gen_init(char** argv){
     //group 번호 설정
     std::string input=argv[3];
@@ -116,26 +117,31 @@ void print_current_time(auto pushed,const std::string& label){//push, pop 시간
                    << std::put_time(std::localtime(&now_c), "%F %T")
                     << "." << std::setfill('0') << std::setw(3) << n_ms.count()
                     << std::endl;
+
+    std::cout << "poped-pushed time : "<< std::chrono::duration_cast<std::chrono::milliseconds>(now - pushed).count() << "ms" << std::endl;
 }                   
 
 std::string Cam_Data_Generator::generate(){
-
+ //TODO : pop 할 데이터가 없을때 "object null" 로 보내면 안됨. 수정필요
+ // 데이터 생성 주기와 전송 주기가 달라도 큐에 저장되어 최신 데이터가 전송되도록 수정해야 함.
 #if TIME
     //pop
     TimeData<object_detect_result_list> cam_det_result;
-    if(!data_queue_->pop(cam_det_result,"cam")){
-        return "object null\n";
-    }
     
+    //cam_det_result 초기화
+    cam_det_result.data.count=0;
+    data_queue_->pop(cam_det_result,"cam");
+    std::cout << "[generate_popped] cam_det_result.count= " << cam_det_result.data.count << std::endl;
+
     auto pushed =cam_det_result.timestamp;
     print_current_time(pushed,"CAM");
 
 #else 
         //pop
     object_detect_result_list cam_det_result;
-    if(!data_queue_->pop(cam_det_result)){
-        return "object null";
-    }
+    //cam_det_result 초기화
+    cam_det_result.count=0;
+    data_queue_->pop(cam_det_result);
 #endif
     /* JSON request 메시지 생성 예시.. */
     auto now = std::chrono::system_clock::now();
@@ -182,7 +188,7 @@ std::string Cam_Data_Generator::generate(){
             Value camObjects(kObjectType);
             object_detect_result *result= &(cam_det_result.data.results[i]);
 #else
-    for(int i=0; i<cam_det_result.count; i++){ // YU0324 count =0 일 경우: 1) frame capture 못한 경우(카메라 연결 에러), 2) 인식된 객체 없는 경우(정상) => 객체 인식된 경우에만 보내도록?
+    for(int i=0; i<cam_det_result.count; i++){ // TODO : 인식된 데이터 없을때, pop 데이터가 없을때 ?
         //   "{
             Value camObjects(kObjectType);
             object_detect_result *result= &(cam_det_result.results[i]);
@@ -238,7 +244,7 @@ std::string Cam_Data_Generator::generate(){
     // json_handler.print_json();
     
     /* ************************************* */
-    std::cout << "test" <<std::endl;
+    // std::cout << "test" <<std::endl;
     return json_handler.get_json_string();
 
 }
@@ -247,9 +253,9 @@ std::string IMU_Data_Generator::generate(){
 #if TIME
     //pop
     TimeData<char*> imu_buffer_16;
-    if(!data_queue_imu->pop(imu_buffer_16,"imu")){
-        return "imu null\n";
-    }
+
+    imu_buffer_16.data=nullptr; //초기화
+    data_queue_imu->pop(imu_buffer_16,"imu");
 
     auto pushed =imu_buffer_16.timestamp;
     print_current_time(pushed,"IMU");
@@ -257,10 +263,9 @@ std::string IMU_Data_Generator::generate(){
 
 #else 
     char* imu_buffer_16=new char[MAX_READ_SIZE];
-    //pop
-    if(!data_queue_imu->pop(imu_buffer_16)){
-        return "imu null";
-    }
+
+    imu_buffer_16.data=nullptr; //초기화
+    data_queue_imu->pop(imu_buffer_16,"imu");
 #endif
     /* JSON request 메시지 생성 예시.. */
     auto now = std::chrono::system_clock::now();
@@ -301,35 +306,42 @@ std::string IMU_Data_Generator::generate(){
     #if 0
     imu_json.AddMember("data" ,Value(imu_buffer_15,allocator), allocator);
     #endif
-#if TIME 
-    //"    1.00     0.01     0.03     0.01\r" imu data split 
-    std::replace(imu_buffer_16.data, imu_buffer_16.data + std::strlen(imu_buffer_16.data), '\\', ' ');
-    
-    std::istringstream stream(imu_buffer_16.data);
-#else
-    //"    1.00     0.01     0.03     0.01\r" imu data split 
-    std::replace(imu_buffer_16, imu_buffer_16 + std::strlen(imu_buffer_16), '\\', ' ');
-    
-    std::istringstream stream(imu_buffer_16);
-#endif
-    std::vector<std::string> result;
-    std::string token;
-    
-    while (stream >> token) {  // 연속된 공백도 자동 무시됨
-        // \r 같은 특수문자 제거
-        token.erase(std::remove(token.begin(), token.end(), '\r'), token.end());
-        result.push_back(token);
+
+    if(imu_buffer_16.data==nullptr){
+        std::cout << "imu_buffer_16.data is null" << std::endl;
+        Value data_arr(kArrayType);
+        imu_json.AddMember("data",data_arr, allocator);
     }
-    Value data_arr(kArrayType);
-    for (const auto& tok : result) {
-           
-        std::cout << tok<< std::endl;
-        data_arr.PushBack(Value(tok.c_str(),allocator),allocator);
+    else{
+    #if TIME 
+        //"    1.00     0.01     0.03     0.01\r" imu data split 
+        std::replace(imu_buffer_16.data, imu_buffer_16.data + std::strlen(imu_buffer_16.data), '\\', ' ');
+        
+        std::istringstream stream(imu_buffer_16.data);
+    #else
+        //"    1.00     0.01     0.03     0.01\r" imu data split 
+        std::replace(imu_buffer_16, imu_buffer_16 + std::strlen(imu_buffer_16), '\\', ' ');
+        
+        std::istringstream stream(imu_buffer_16);
+    #endif
+        std::vector<std::string> result;
+        std::string token;
+        
+        while (stream >> token) {  // 연속된 공백도 자동 무시됨
+            // \r 같은 특수문자 제거
+            token.erase(std::remove(token.begin(), token.end(), '\r'), token.end());
+            result.push_back(token);
+        }
+        Value data_arr(kArrayType);
+        for (const auto& tok : result) {
+            
+            std::cout << tok<< std::endl;
+            data_arr.PushBack(Value(tok.c_str(),allocator),allocator);
+        }
+
+
+        imu_json.AddMember("data",data_arr,allocator);
     }
-
-
-    imu_json.AddMember("data",data_arr,allocator);
-
     StringBuffer buffer;
     Writer<StringBuffer> writer(buffer);
     imu_json.Accept(writer);
@@ -344,8 +356,6 @@ std::string IMU_Data_Generator::generate(){
     json_handler.add_member_p("/payload/data", imu_string); 
     json_handler.add_member_p("/payload/time_stamp", now_ms);
     
-    // std::cout << "generate json : ";
-    // json_handler.print_json();
     
     /* ************************************* */
     // std::cout << "test" <<std::endl;
