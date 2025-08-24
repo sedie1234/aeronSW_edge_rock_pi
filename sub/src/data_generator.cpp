@@ -255,6 +255,7 @@ std::string IMU_Data_Generator::generate(){
     TimeData<char*> imu_buffer_16;
 
     imu_buffer_16.data=nullptr; //초기화
+    imu_buffer_16.data="    9.99     9.99     9.99     9.99\r";
     data_queue_imu->pop(imu_buffer_16,"imu");
 
     auto pushed =imu_buffer_16.timestamp;
@@ -306,13 +307,14 @@ std::string IMU_Data_Generator::generate(){
     #if 0
     imu_json.AddMember("data" ,Value(imu_buffer_15,allocator), allocator);
     #endif
-
+    #if 0
     if(imu_buffer_16.data==nullptr){
         std::cout << "imu_buffer_16.data is null" << std::endl;
         Value data_arr(kArrayType);
         imu_json.AddMember("data",data_arr, allocator);
     }
     else{
+    #endif
     #if TIME 
         //"    1.00     0.01     0.03     0.01\r" imu data split 
         std::replace(imu_buffer_16.data, imu_buffer_16.data + std::strlen(imu_buffer_16.data), '\\', ' ');
@@ -341,7 +343,9 @@ std::string IMU_Data_Generator::generate(){
 
 
         imu_json.AddMember("data",data_arr,allocator);
+        #if 0
     }
+    #endif
     StringBuffer buffer;
     Writer<StringBuffer> writer(buffer);
     imu_json.Accept(writer);
